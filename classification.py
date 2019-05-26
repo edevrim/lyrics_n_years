@@ -20,10 +20,11 @@ from tqdm import tqdm
 tqdm.pandas(desc="progress-bar")
 from sklearn import utils
 from gensim.test.test_doc2vec import ConcatenatedDoc2Vec
-
+#from sklearn.model_selection import GridSearchCV
+#from sklearn.model_selection import KFold
+#from sklearn.naive_bayes import MultinomialNB
 #%%
 #take dataset
-
 hip_hop = pd.read_excel('hip_hop_last.xlsx')
 
 #lyrics only pos
@@ -33,12 +34,20 @@ hip_hop['lyrics_pos'] = hip_hop['Nouns'].astype(str) + ' ' + hip_hop['Verbs'].as
 hip_hop_old = pd.read_csv('hip_hop_topic_modeling10.csv')
 
 #
-keep1 = ['Year', 'Artist', 'processed_lyrics', 'Song Title', 'Topic1', 'Topic2', 'Topic3', 'Topic4', 'Topic', 'Topic6', 'Topic7', 'Topic8', 'Topic9', 'Topic10']      
+keep1 = ['Year', 'Artist', 'processed_lyrics', 'Song Title', 'Topic1', 'Topic2', 'Topic3', 'Topic4', 'Topic 5']      
 hip_hop_old = hip_hop_old[keep1]
 
+emotions = pd.read_csv('hip_hop_nocontracted_v4_emotions.csv')
+keep2 = ['Year', 'Artist', 'Song Title', 'Sentiment_score', 'anger', 'anticipation', 'disgust', 'fear', 'joy', 'negative', 'positive', 'sadness', 'surprise', 'trust']
+emotions =emotions[keep2]
+
+
 hip_hop_last = pd.merge(hip_hop, hip_hop_old, how='left', on=('Year', 'Artist', 'Song Title'))
+hip_hop_last = pd.merge(hip_hop_last, emotions, how='left', on=('Year', 'Artist', 'Song Title'))
+
 
 lyrics_and_numeric_var_list = ['Year',
+#'Artist',                               
 'Lyrics',                                
 'processed_lyrics',
 'lyrics_pos', 
@@ -65,20 +74,28 @@ lyrics_and_numeric_var_list = ['Year',
 'Topic2',
 'Topic3',
 'Topic4',
-'Topic',
-'Topic6',
-'Topic7',
-'Topic8',
-'Topic9',
-'Topic10']
+'Topic 5',
+'Sentiment_score', 'anger', 'anticipation', 'disgust', 'fear', 'joy', 'negative', 'positive', 'sadness', 'surprise', 'trust']
 
 hip_hop_last = hip_hop_last[lyrics_and_numeric_var_list]
 
 count1 = hip_hop_last['Year'].value_counts().reset_index(drop=False)
 
+#5 years times
 hip_hop1 = hip_hop_last[hip_hop_last['Year'] <= 2007]
 
-hip_hop2 = hip_hop_last[hip_hop_last['Year'] > 2012]
+#artist1 = hip_hop1.groupby('Artist')['Lyrics'].count().reset_index(drop=False)
+
+hip_hop2 = hip_hop_last[(hip_hop_last['Year'] > 2007) & (hip_hop_last['Year'] <= 2012)]
+
+#artist2 = hip_hop2.groupby('Artist')['Lyrics'].count().reset_index(drop=False)
+
+hip_hop3 = hip_hop_last[hip_hop_last['Year'] > 2012]
+
+#artist3 = hip_hop3.groupby('Artist')['Lyrics'].count().reset_index(drop=False)
+
+#%%
+del keep1, keep2, hip_hop_old, emotions, count1
 
 #%%
 #Simple rock vs hiphop tfidf etc 
@@ -135,6 +152,25 @@ def log_reg_and_svm(XX_train, YY_train, XX_test, YY_test):
     
     #Logistic Regression
     model1 = LogisticRegression()
+    
+    #random search
+    #cv1= KFold(n_splits=3, shuffle=True, random_state=1) 
+    
+    #Create regularizations
+    #penalty = ['l1', 'l2']
+    #C = [0.001, 0.01, 0.1, 1, 10, 100]
+    #hyperparameters = dict(C=C, penalty=penalty)
+    #grid = GridSearchCV(model1, hyperparameters, cv=cv1, verbose=0, scoring = 'roc_auc')
+    
+    #fit grid search
+    #model11 = grid.fit(XX_train, YY_train.values.ravel())
+    #print('grid search is done!')  
+    #grid_best_score = model11.best_score_ 
+    #print(model1.best_score_) 
+    #print(model1.best_params_) 
+    ##take best estimator then fit on train then test on test set
+    #model111 = model11.best_estimator_.fit(XX_train, YY_train.values.ravel())
+    
     model1.fit(XX_train, YY_train)
 
     #Predict on test set
@@ -151,6 +187,27 @@ def log_reg_and_svm(XX_train, YY_train, XX_test, YY_test):
 
     #SVM
     model2 = SVC()
+    
+    #random search
+##    param_grid = {'kernel':['linear'], 'C':[0, 1, 0.5, 0.75], 'gamma': [1,2], 'probability': [True]}
+##    grid2 = GridSearchCV(model2, param_grid, cv=cv1, verbose=0, scoring='roc_auc', n_jobs=-1)
+    
+    #fit grid search
+##    model22 = grid2.fit(XX_train, YY_train)
+    #print('grid search is done!')  
+    #grid_best_score = model1.best_score_ 
+    #print(model1.best_score_) 
+    
+    ##take best estimator then fit on train then test on test set
+##    model222 = model22.best_estimator_.fit(XX_train, YY_train)
+   
+    #pred_test = pd.DataFrame(model2.predict(X_test)).set_index(X_test.index)
+    #pred_test_proba = pd.DataFrame(model2.predict_proba(X_test)).set_index(X_test.index) 
+    #pred_test_proba = pd.DataFrame(pred_test_proba[1])
+    #pred_test.columns = [target1]
+    #pred_test_proba.columns = [target1] 
+
+    
     model2.fit(XX_train, YY_train)
 
     #Predict on test set
@@ -163,19 +220,39 @@ def log_reg_and_svm(XX_train, YY_train, XX_test, YY_test):
     recall2 = recall_score(YY_test, predictions2)
     f1_score2 = f1_score(YY_test, predictions2)
     
+    
+#    model3 = MultinomialNB()
+#    model3.fit(XX_train, YY_train)
+
+    #Predict on test set
+#    predictions3 = model3.predict(XX_test)
+    
+    #score
+#    roc3 = roc_auc_score(YY_test, predictions3)
+#    accuracy3 = accuracy_score(YY_test, predictions3)
+#    precision3 = precision_score(YY_test, predictions3)
+#    recall3 = recall_score(YY_test, predictions3)
+#    f1_score3 = f1_score(YY_test, predictions3)
+    
     output = {
          'Accuracy LR:': accuracy1,  
          'ROC LR:': roc1,    
          'Precision LR:': precision1,    
          'Recall LR:': recall1,    
-         'F1-score LR:': f1_score1,    
+         'F1-score LR:': f1_score1,
          
-         'Accuracy SVM:': accuracy2,  
+        'Accuracy SVM:': accuracy2,  
          'ROC SVM:': roc2,    
          'Precision SVM:': precision2,    
          'Recall SVM:': recall2,    
          'F1-score SVM:': f1_score2}
-    
+         
+   #      'Accuracy NB:': accuracy3,  
+   #      'ROC NB:': roc3,    
+   #      'Precision NB:': precision3,    
+   #      'Recall NB:': recall3,    
+   #      'F1-score NB:': f1_score3
+   #      }
     
     return output
 
@@ -294,8 +371,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     #We set the minimum word count to 2 in order to discard words with very few occurrences.
 
     cores = multiprocessing.cpu_count()
-    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores)
+    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores, epochs=200)
+    train_corpus = [x for x in train_doc2.values]
     model_dbow.build_vocab([x for x in train_doc2.values])
+    
+    model_dbow.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
     
     y_train_doc, X_train_doc = get_vectors(model_dbow, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dbow, test_doc2)
@@ -304,14 +384,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     output7_doc2vec_dbow_plain_lyrics = log_reg_and_svm(X_train_doc, y_train_doc, X_test_doc, y_test_doc);
  
     #dm = 1 model
-    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=5)
+    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=cores, epochs=200)
     model_dmm.build_vocab([x for x in train_doc2.values])
-
-    for epoch in range(100):
-        model_dmm.train(utils.shuffle([x for x in train_doc2.values]), total_examples=len(train_doc2.values), epochs=1)
-        model_dmm.alpha -= 0.002
-        model_dmm.min_alpha = model_dmm.alpha
     
+    model_dmm.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
+
     y_train_doc, X_train_doc = get_vectors(model_dmm, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dmm, test_doc2)
     
@@ -415,7 +492,9 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     
     #models 
     output15_ngram_processed_lyrics_w_num = log_reg_and_svm(X_train_mixed, y_train, X_test_mixed, y_test);
- 
+    
+    
+    
     #Doc2Vec ********************************************************************************************************************************************************
     
     train_doc = pd.DataFrame(pd.concat([X_train[TEXT], y_train], axis=1))
@@ -429,8 +508,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     #We set the minimum word count to 2 in order to discard words with very few occurrences.
 
     cores = multiprocessing.cpu_count()
-    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores)
+    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores, epochs=200)
+    train_corpus = [x for x in train_doc2.values]
     model_dbow.build_vocab([x for x in train_doc2.values])
+    
+    model_dbow.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
     
     y_train_doc, X_train_doc = get_vectors(model_dbow, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dbow, test_doc2)
@@ -439,14 +521,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     output16_doc2vec_dbow_processed_lyrics = log_reg_and_svm(X_train_doc, y_train_doc, X_test_doc, y_test_doc);
  
     #dm = 1 model
-    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=5)
+    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=cores, epochs=200)
     model_dmm.build_vocab([x for x in train_doc2.values])
-
-    for epoch in range(100):
-        model_dmm.train(utils.shuffle([x for x in train_doc2.values]), total_examples=len(train_doc2.values), epochs=1)
-        model_dmm.alpha -= 0.002
-        model_dmm.min_alpha = model_dmm.alpha
     
+    model_dmm.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
+
     y_train_doc, X_train_doc = get_vectors(model_dmm, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dmm, test_doc2)
     
@@ -465,9 +544,7 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     #models 
     output18_doc2vec_dbowdb_processed_lyrics = log_reg_and_svm(X_train_doc, y_train_doc, X_test_doc, y_test_doc);
 
-
 ######################################################################################################################
-
 
     #WITH POS LYRICS
     TEXT = pos_lyrics;
@@ -551,7 +628,8 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     
     #models 
     output24_ngram_pos_lyrics_w_num = log_reg_and_svm(X_train_mixed, y_train, X_test_mixed, y_test);
- 
+
+
     #Doc2Vec ********************************************************************************************************************************************************
     
     train_doc = pd.DataFrame(pd.concat([X_train[TEXT], y_train], axis=1))
@@ -565,8 +643,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     #We set the minimum word count to 2 in order to discard words with very few occurrences.
 
     cores = multiprocessing.cpu_count()
-    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores)
+    model_dbow = Doc2Vec(dm=0,  vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, hs=0, workers=cores, epochs=200)
+    train_corpus = [x for x in train_doc2.values]
     model_dbow.build_vocab([x for x in train_doc2.values])
+    
+    model_dbow.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
     
     y_train_doc, X_train_doc = get_vectors(model_dbow, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dbow, test_doc2)
@@ -575,14 +656,11 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
     output25_doc2vec_dbow_pos_lyrics = log_reg_and_svm(X_train_doc, y_train_doc, X_test_doc, y_test_doc);
  
     #dm = 1 model
-    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=5)
+    model_dmm = Doc2Vec(dm=1, dm_mean=1, vector_size=vector_size1, window=window1, negative=negative1, min_count=min_count1, workers=cores, epochs=200)
     model_dmm.build_vocab([x for x in train_doc2.values])
-
-    for epoch in range(100):
-        model_dmm.train(utils.shuffle([x for x in train_doc2.values]), total_examples=len(train_doc2.values), epochs=1)
-        model_dmm.alpha -= 0.002
-        model_dmm.min_alpha = model_dmm.alpha
     
+    model_dmm.train(train_corpus, total_examples=model_dbow.corpus_count, epochs=model_dbow.epochs)
+
     y_train_doc, X_train_doc = get_vectors(model_dmm, train_doc2)
     y_test_doc, X_test_doc = get_vectors(model_dmm, test_doc2)
     
@@ -634,5 +712,8 @@ def all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_
 
 #%%
    
-output1 = all_techniques(hip_hop1, hip_hop2, 'Year', 'Lyrics', 'processed_lyrics', 'lyrics_pos', 0.3, 3, 0.95, 1, 3, 300, 10, 5, 3) 
+#output12 = all_techniques(hip_hop1, hip_hop2, 'Year', 'Lyrics', 'processed_lyrics', 'lyrics_pos', 0.3, 5, 0.9, 1, 2, 300, 10, 5, 5) 
+output13 = all_techniques(hip_hop1, hip_hop3, 'Year', 'Lyrics', 'processed_lyrics', 'lyrics_pos', 0.3, 3, 0.95, 1, 3, 300, 10, 5, 5) 
+#output23 = all_techniques(hip_hop2, hip_hop3, 'Year', 'Lyrics', 'processed_lyrics', 'lyrics_pos', 0.3, 5, 0.9, 1, 2, 300, 10, 5, 5) 
+
 #all_techniques(data1, data2, year_name, plain_lyrics, processed_lyrics, pos_lyrics, test_percent, min_df, max_df, ngram_range1, ngram_range2, vector_size1, window1, negative1, min_count1): 

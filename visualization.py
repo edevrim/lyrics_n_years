@@ -34,7 +34,16 @@ def word_counts(data1, pos, year, most_num):
     #frequencies per each year
     for i in range (0, len(years)):
         year_corpus = str(data1[pos][data1[year] == years[i]].tolist())
+        #print(year_corpus)
+        year_corpus = year_corpus.replace("'", '')
+        year_corpus = year_corpus.replace("[", '')
+        year_corpus = year_corpus.replace("]", '')
+        year_corpus = year_corpus.replace(",", '')
+        year_corpus = year_corpus.replace("  ", ' ')
+        year_corpus = year_corpus.replace(" nan", '')
+        year_corpus = year_corpus.replace("nan", '')
         tokens = year_corpus.split(" ")
+        tokens = filter(None, tokens) 
         counts = Counter(tokens)
         freq = freq.append({
             year: years[i],
@@ -69,9 +78,16 @@ def word_counts(data1, pos, year, most_num):
             
             for words in current_terms:
                 tabularized[words[0]] = tabularized.apply(lambda x: words[1] if x[year] == current_year else x[words[0]], axis=1)
-  
+    
+    tabularized_t = tabularized.T.reset_index(drop=False)   
+    tabularized_t.columns = tabularized_t.iloc[-1]  
+    tabularized_t.drop(tabularized_t.tail(1).index,inplace=True) 
+    
+    writer = pd.ExcelWriter('For_animated_bars_'+pos+'.xlsx', engine='xlsxwriter');
+    tabularized_t.to_excel(writer, sheet_name= 'stream_me');
+    writer.save();
+    
     return freq, common_words, tabularized
-
 
 #%%
 #How can write labels inside like examples in slides?! Answer is go Tableaueua
@@ -117,15 +133,12 @@ def go_for_tableau(tabularized1, data1, genre, pos, pos_column, year_name, top_x
     
     tabularized2 = tabularized1.copy()
     
-    count_pos = data1[[pos_column, year_name]]
-    count_pos1 = count_pos.groupby(year_name)[pos_column].sum().reset_index(drop=False)
-    
-    
     list1 = list(tabularized2).remove(year_name)
+    sum_all = pd.melt(tabularized2, id_vars=year_name, value_vars=list1)
+    sum_all1 = sum_all.groupby(year_name)['value'].sum().reset_index(drop=False)
+        
     xxd11 = pd.melt(tabularized2, id_vars=year_name, value_vars=list1)
-    
     xxd22 = xxd11.sort_values([year_name, 'value'], ascending=[True, False])
-    
     xxd33 = xxd22.groupby(year_name).head(top_x_word_per_year)
     
     #take distinct words and top 
@@ -134,9 +147,9 @@ def go_for_tableau(tabularized1, data1, genre, pos, pos_column, year_name, top_x
     xxd44 = xxd22[xxd22['variable'].isin(dist_vars)]
     
     #find proportions
-    merge1 = pd.merge(xxd44, count_pos1, how='left', on=year_name)
+    merge1 = pd.merge(xxd44,  sum_all1, how='left', on=year_name)
     
-    merge1['word_perc'] = merge1.apply(lambda x: (100*x['value']/x[pos_column]) if x[pos_column] > 0 else 0, axis=1)
+    merge1['word_perc'] = merge1.apply(lambda x: (100*x['value_x']/x['value_y']) if x['value_y'] > 0 else 0, axis=1)
     
     writer = pd.ExcelWriter(genre+'_'+pos+'_stream_me.xlsx', engine='xlsxwriter');
     merge1.to_excel(writer, sheet_name= 'stream_me');
@@ -145,15 +158,50 @@ def go_for_tableau(tabularized1, data1, genre, pos, pos_column, year_name, top_x
     return merge1;
 
 #%%
+
+#Emotions and sentiments 
+emotions = pd.read_csv('hip_hop_nocontracted_v4_emotions.csv')
+
+list1 = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'negative', 'positive', 'sadness', 'surprise', 'trust']   
+emotions1 = pd.melt(emotions, id_vars='Year', value_vars=list1)
+
+writer = pd.ExcelWriter('Emotions_stream_me.xlsx', engine='xlsxwriter');
+emotions1.to_excel(writer, sheet_name= 'stream_me');
+writer.save();
+
+#sentiments = pd.read_csv('hip_hop_nocontracted_v4_emotions.csv')
+#
+#list2 = ['Sentiment_score']   
+#sentiments1 = pd.melt(sentiments, id_vars='Year', value_vars=list2)
+#
+#sentiments1['Pos_Neg'] = sentiments1['value'].apply(lambda x: 'Negative' if x < 0 else 'Positive')
+#
+#writer = pd.ExcelWriter('Sentiments_stream_me.xlsx', engine='xlsxwriter');
+#sentiments1.to_excel(writer, sheet_name= 'stream_me');
+#writer.save();
+
+#%%
 #Word clouds
 def wordcloud(freq, year_name, year, pos, max_words, genre):
     
-    freq1 = freq[freq[year_name] == year].reset_index(drop=True)
-    freq2 = pd.DataFrame(freq1['words'][0]).astype(str)
-    freq2 = freq2.rename(index=str, columns={0: 'word', 1: 'count'})
     
+    freq1 = freq.copy()
+    #no need to yearly wordclouds anymore
+    #freq1 = freq[freq[year_name] == year].reset_index(drop=True)
+    #freq2 = pd.DataFrame(freq1['words'][0]).astype(str)
+    #freq2 = freq2.rename(index=str, columns={0: 'word', 1: 'count'})
+    
+    mergedlist = [];
+    #for aggregated 
+    for k in range(len(freq1)): 
+        mergedlist = mergedlist + freq1['words'].iloc[k]
+        
+    freq2 = pd.DataFrame(mergedlist, columns=['word', 'count'])
+    
+    freq3 = freq2.groupby('word')['count'].sum().reset_index(drop=False)
+      
     d = {}
-    for a, x in freq2.values:
+    for a, x in freq3.values:
         d[a] = float(x)
 
     wordcloud = WordCloud( width = 4000,
@@ -167,7 +215,8 @@ def wordcloud(freq, year_name, year, pos, max_words, genre):
     plt.axis("off")
     #plt.show()
     
-    plt.savefig('WC_'+genre+'_'+pos+'_'+str(year), bbox_inches='tight')
+    #plt.savefig('WC_'+genre+'_'+pos+'_'+str(year), bbox_inches='tight')
+    plt.savefig('WC_'+genre+'_'+pos+'_all', bbox_inches='tight')
     
     return;
 
@@ -184,7 +233,7 @@ def heatmappp(tabularized1, year_name, pos, heat_map_words, genre):
     heatmap3 = heatmap[keep_list] 
 
     plt.figure(figsize=(10,10))
-    sns.heatmap(data=heatmap3)
+    sns.heatmap(data=heatmap3, cmap="YlGnBu")
     #plt.show()  
     
     plt.savefig('HM_'+genre+'_'+pos, bbox_inches='tight')
@@ -209,19 +258,39 @@ def run_per_genre(data1, pos, pos_column, genre, year_name, most_num, top_x_word
     heatmappp(tabularized, year_name, pos, heat_map_words, genre);
       
     #wordclouds 
-    for k in frequencies[year_name]:
-        wordcloud(frequencies, year_name, k, pos, max_words, genre)
+    #for k in frequencies[year_name]:
+    #    wordcloud(frequencies, year_name, k, pos, max_words, genre)
+    
+    wordcloud(frequencies, year_name, 1905, pos, max_words, genre)
     
     return frequencies, common_words, tabularized; 
 
 #%%
 #Wordclouds 
 
-frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Nouns', 'noun_count' ,'hip_hop', 'Year', 100, 5, 10, 20);
-#frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Verbs', 'verb_count' ,'hip_hop', 'Year', 100, 5, 10, 20);
-#frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Verbs', 'verb_count' ,'hip_hop', 'Year', 100, 5, 10, 20);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'ORGANIZATION', 'org_count' ,'hip_hop', 'Year', 900, 5, 10, 20);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'LOC', 'loc_count' ,'hip_hop', 'Year', 900, 5, 10, 25);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'DATE', 'date_count' ,'hip_hop', 'Year', 900, 5, 10, 25);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'PERSON', 'person_count' ,'hip_hop', 'Year', 900, 5, 10, 25);
+    
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Nouns', 'noun_count' ,'hip_hop', 'Year', 900, 10, 10, 25);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Verbs', 'verb_count' ,'hip_hop', 'Year', 900, 10, 10, 25);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Adjectives', 'adjective_count' ,'hip_hop', 'Year', 900, 10, 10, 25);
+frequencies, common_words, tabularized = run_per_genre(hip_hop, 'Adverbs', 'adverb_count' ,'hip_hop', 'Year', 900, 5, 10, 25);
 
-        
+
+#%%
+
+data222 = pd.read_csv('hip_hop_nocontracted_v4_nostopwords.csv')
+frequencies, common_words, tabularized = run_per_genre(data222, 'Lyrics', 'word_count' ,'hip_hop', 'Year', 500, 5, 10, 25);
     
-  
-    
+#%%
+#singer counts
+
+singers = hip_hop[['Year', 'Artist', 'Song Title']].groupby(['Year', 'Artist'])['Song Title'].count().reset_index(drop=False)
+
+xxd1 = pd.pivot_table(singers, values='Song Title', index='Artist', columns='Year').fillna(0)
+
+writer = pd.ExcelWriter('Artist_stream_me.xlsx', engine='xlsxwriter');
+xxd1.to_excel(writer, sheet_name= 'stream_me');
+writer.save();

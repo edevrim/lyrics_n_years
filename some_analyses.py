@@ -14,6 +14,7 @@ import spacy
 from tqdm import tqdm
 tqdm.pandas(desc="progress-bar")
 from nltk.tag import StanfordNERTagger
+from sklearn.feature_extraction.text import CountVectorizer
 
 #%%
 #DATA PREP *****************************************************************************************************************************
@@ -224,6 +225,38 @@ def ner_spacy(data1, lyrics):
 #%%
 #NER by Stanford   
 
+#most frequent bigrams
+c_vec = CountVectorizer(ngram_range=(2,2), min_df=5)
+
+# input to fit_transform() should be an iterable with strings
+lyrix = hip_hop['Lyrics'].astype(str)
+ngrams = c_vec.fit_transform(lyrix)
+
+# needs to happen after fit_transform()
+vocab = c_vec.vocabulary_
+
+count_values = ngrams.toarray().sum(axis=0)
+
+xd1 = pd.DataFrame(vocab, index=[0])
+xd1 = xd1.T.reset_index(drop=False) 
+
+# new data frame with split value columns 
+new = xd1['index'].str.split(" ", n = 1, expand = True) 
+  
+# making separate first name column from new data frame 
+list_consecutive = pd.DataFrame(xd1['index'])
+list_consecutive['First_word']= new[0] 
+  
+# making separate last name column from new data frame 
+list_consecutive['Last_word']= new[1] 
+
+list_consecutive2 = list_consecutive['index'].tolist()
+#%%    
+
+del count_values, lyrix, new, vocab, xd1, list_consecutive
+
+#%%
+
 def ner_stanford(data1, lyrics): 
     #print('NTLK Version: %s' % nltk.__version__)
     stanford_ner_tagger = StanfordNERTagger(
@@ -252,27 +285,33 @@ def ner_stanford(data1, lyrics):
             tag_value = result[0]
             tag_type = result[1]
             
+            compare1 = prev_tag_value + ' ' + tag_value
+            compare1 = compare1.lower()
+            
             if tag_type == 'PERSON': 
                 if prev_tag_type == 'PERSON':
-                    person = person+ ' '+tag_value
+                    if compare1 in list_consecutive2:
+                        person = person + '-' + tag_value
                 else:
-                    person = person+ ', '+tag_value
+                    person = person + ' ' + tag_value
                     
             elif tag_type == 'LOCATION':
                 if prev_tag_type == 'LOCATION':
+                    if compare1 in list_consecutive2:
+                        loc =  loc+ '-' +tag_value
+                else:
                     loc =  loc+' '+tag_value
-                else:
-                    loc =  loc+', '+tag_value
                     
-            elif (tag_type == 'ORGANIZATION' and prev_tag_value != tag_value): 
+            elif tag_type == 'ORGANIZATION':
                 if prev_tag_type == 'ORGANIZATION':
-                    org = org+ ' '+tag_value
+                    if compare1 in list_consecutive2:
+                        org = org+ '-' +tag_value
                 else:
-                    org = org+ ', '+tag_value
+                    org = org+ ' ' +tag_value
                     
             #No need for date        
             elif tag_type == 'DATE': 
-              date = date+ ', '+tag_value
+              date = date+ ' '+tag_value
               
             prev_tag_type = tag_type  
             prev_tag_value = tag_value 
@@ -285,10 +324,10 @@ def ner_stanford(data1, lyrics):
         
         #unique words
         # Split list into new series
-        loc1 = data1['LOC'].str.split(',')
-        date1 = data1['DATE'].str.split(',')
-        person1 = data1['PERSON'].str.split(',')
-        org1 = data1['ORGANIZATION'].str.split(',')
+        loc1 = data1['LOC'].str.split(' ')
+        date1 = data1['DATE'].str.split(' ')
+        person1 = data1['PERSON'].str.split(' ')
+        org1 = data1['ORGANIZATION'].str.split(' ')
     
         # Get amount of unique words
         data1['loc_count'] = loc1.apply(set).apply(len) - 1
@@ -296,8 +335,7 @@ def ner_stanford(data1, lyrics):
         data1['person_count'] = person1.apply(set).apply(len) - 1
         data1['org_count'] = org1.apply(set).apply(len) - 1
  
-    return data1  
-    
+    return data1
 
 #%%
 #All together 
@@ -326,18 +364,18 @@ def create_my_data(data_lower, data_non_lower, lyrics, genre, word_cutoff, top_s
     data3['adv_to_unique'] = data3.apply(lambda x: x['adverb_count']/ x['unique_word_count'] if x['unique_word_count'] > 0 else 0, axis=1)
     
     #for visualization let's make it like New-York
-    data3['LOC'] = data3['LOC'].apply(lambda x: x.replace(' ', '-'))
-    data3['LOC'] = data3['LOC'].apply(lambda x: x.replace(',-', ' '))
-    
-    data3['DATE'] = data3['DATE'].apply(lambda x: x.replace(' ', '-'))
-    data3['DATE'] = data3['DATE'].apply(lambda x: x.replace(',-', ' '))
-    
-    data3['PERSON'] = data3['PERSON'].apply(lambda x: x.replace(' ', '-'))
-    data3['PERSON'] = data3['PERSON'].apply(lambda x: x.replace(',-', ' '))
-    
-    data3['ORGANIZATION'] = data3['ORGANIZATION'].apply(lambda x: x.replace(' ', '-'))
-    data3['ORGANIZATION'] = data3['ORGANIZATION'].apply(lambda x: x.replace(',-', ' '))
-    
+#    data3['LOC'] = data3['LOC'].apply(lambda x: x.replace(' ', '-'))
+#    data3['LOC'] = data3['LOC'].apply(lambda x: x.replace(',-', ' '))
+#    
+#    data3['DATE'] = data3['DATE'].apply(lambda x: x.replace(' ', '-'))
+#    data3['DATE'] = data3['DATE'].apply(lambda x: x.replace(',-', ' '))
+#    
+#    data3['PERSON'] = data3['PERSON'].apply(lambda x: x.replace(' ', '-'))
+#    data3['PERSON'] = data3['PERSON'].apply(lambda x: x.replace(',-', ' '))
+#    
+#    data3['ORGANIZATION'] = data3['ORGANIZATION'].apply(lambda x: x.replace(' ', '-'))
+#    data3['ORGANIZATION'] = data3['ORGANIZATION'].apply(lambda x: x.replace(',-', ' '))
+#    
     #to excel
     writer = pd.ExcelWriter(genre+'_last.xlsx', engine='xlsxwriter');
     data3.to_excel(writer, sheet_name= genre);
